@@ -12,7 +12,7 @@ use bevy::{
     },
 };
 use crossbeam::channel::Sender;
-use image::{ImageBuffer, Rgb, Rgba};
+use image::{ImageBuffer, Rgba};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,

@@ -4,11 +4,11 @@ use bevy::{
         render_asset::RenderAssets,
         render_graph::{self, NodeRunError, RenderGraph, RenderGraphContext, RenderLabel},
         render_resource::{
-            Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, Maintain,
-            MapMode, TexelCopyBufferInfo, TexelCopyBufferLayout,
+            Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Extent3d, MapMode,
+            PollType, TexelCopyBufferInfo, TexelCopyBufferLayout,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        Extract, Render, RenderApp, RenderSet,
+        Extract, Render, RenderApp, RenderSystems,
     },
 };
 use crossbeam::channel::Sender;
@@ -77,7 +77,10 @@ impl Plugin for ImageCopyPlugin {
             .add_systems(ExtractSchedule, image_copy_extract)
             // Receives image data from buffer to channel
             // so we need to run it after the render graph is done
-            .add_systems(Render, receive_image_from_buffer.after(RenderSet::Render));
+            .add_systems(
+                Render,
+                receive_image_from_buffer.after(RenderSystems::Render),
+            );
     }
 }
 
@@ -259,7 +262,9 @@ fn receive_image_from_buffer(
         // `Maintain::Wait` will cause the thread to wait on native but not on WebGpu.
 
         // This blocks until the gpu is done executing everything
-        render_device.poll(Maintain::wait()).panic_on_timeout();
+        render_device
+            .poll(PollType::wait())
+            .expect("Failed to poll device for map async");
 
         // This blocks until the buffer is mapped
         r.recv().expect("Failed to receive the map_async message");

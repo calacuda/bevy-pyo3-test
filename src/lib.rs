@@ -1,26 +1,22 @@
+use crate::image_copy::{ImageCopier, ImageCopyPlugin, ImageToSave, SceneController, SceneState};
 use bevy::{
-    a11y::AccessibilityPlugin,
     asset::RenderAssetUsages,
+    camera::{ImageRenderTarget, RenderTarget},
     core_pipeline::tonemapping::Tonemapping,
     math::FloatOrd,
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
     render::{
-        camera::{ImageRenderTarget, RenderTarget},
         pipelined_rendering::PipelinedRenderingPlugin,
         render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
         renderer::RenderDevice,
     },
-    winit::WinitPlugin,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
-use pyo3::prelude::*;
 use std::{
     f32::consts::PI,
     thread::{spawn, JoinHandle},
 };
-
-use crate::image_copy::{ImageCopier, ImageCopyPlugin, ImageToSave, SceneController, SceneState};
 
 pub mod image_copy;
 pub mod sphere;
@@ -115,31 +111,31 @@ fn setup(
     scene_controller.state = SceneState::Render(0);
 }
 
-#[pyclass]
+// #[pyclass]
 pub struct IPC {
-    _thread_jh: JoinHandle<()>,
+    pub _thread_jh: JoinHandle<()>,
     send: Sender<()>,
     recv: Receiver<Vec<u8>>,
 }
 
-#[pymethods]
-impl IPC {
-    fn recv(&self) -> Option<Vec<u8>> {
-        // send a signal to bevy thread with a one shot receiver that
-        // debug!("asking for new frame");
+// #[pymethods]
+// impl IPC {
+//     fn recv(&self) -> Option<Vec<u8>> {
+//         // send a signal to bevy thread with a one shot receiver that
+//         // debug!("asking for new frame");
+//
+//         self.recv.try_iter().last()
+//     }
+//
+//     fn stop(&self) {
+//         if let Err(e) = self.send.send(()) {
+//             error!("failed to stop bevy {e}")
+//         }
+//     }
+// }
 
-        self.recv.try_iter().last()
-    }
-
-    fn stop(&self) {
-        if let Err(e) = self.send.send(()) {
-            error!("failed to stop bevy {e}")
-        }
-    }
-}
-
-#[pyfunction]
-fn run() -> IPC {
+// #[pyfunction]
+pub fn run() -> IPC {
     let to_bevy = unbounded();
     let from_bevy = unbounded();
 
@@ -168,9 +164,8 @@ fn run() -> IPC {
                 .add_plugins((
                     DefaultPlugins
                         .set(ImagePlugin::default_nearest())
-                        .disable::<WinitPlugin>()
-                        .disable::<PipelinedRenderingPlugin>()
-                        .disable::<AccessibilityPlugin>(),
+                        // .disable::<WinitPlugin>()
+                        .disable::<PipelinedRenderingPlugin>(), // .disable::<AccessibilityPlugin>(),
                     WireframePlugin::default(),
                     sphere::SphereMode,
                 ))
@@ -209,11 +204,11 @@ fn run() -> IPC {
     }
 }
 
-/// A Python module implemented in Rust.
-#[pymodule]
-fn bevy_pyo3_test(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<IPC>()?;
-
-    m.add_function(wrap_pyfunction!(run, m)?)?;
-    Ok(())
-}
+// /// A Python module implemented in Rust.
+// #[pymodule]
+// fn bevy_pyo3_test(m: &Bound<'_, PyModule>) -> PyResult<()> {
+//     m.add_class::<IPC>()?;
+//
+//     m.add_function(wrap_pyfunction!(run, m)?)?;
+//     Ok(())
+// }

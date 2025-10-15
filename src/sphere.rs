@@ -4,7 +4,7 @@ use bevy::{
 };
 use noise::{NoiseFn, Perlin};
 use rand::Rng;
-use std::f32::consts::TAU;
+use std::f32::consts::{PI, TAU};
 
 #[derive(Clone, Copy, Debug, Resource)]
 pub struct PerlinWrapper(Perlin);
@@ -35,9 +35,22 @@ pub struct SphereMode;
 
 impl Plugin for SphereMode {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (gen_perlin, add_sphere, timer_setup))
+        app.add_systems(Startup, (spawn_camera, gen_perlin, add_sphere, timer_setup))
             .add_systems(Update, (undulate_sphere, rotate_sphere));
     }
+}
+
+fn spawn_camera(mut commands: Commands) {
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(0.0, 0.0, 4.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+        // Camera::default(),
+        // Projection::Perspective(PerspectiveProjection {
+        //     // far: 1_000.0,
+        //     far: 1_000_000.0,
+        //     ..default()
+        // }),
+    ));
 }
 
 fn timer_setup(mut commands: Commands) {
@@ -114,6 +127,21 @@ fn add_sphere(
         NoWireframe,
         Rotatable { speed: 0.03125 },
         UndulateSphere,
+    ));
+
+    let intensity = 10_000_000.0;
+    let light = PointLight {
+        shadows_enabled: true,
+        intensity,
+        range: 1_000_000.0,
+        shadow_depth_bias: 0.2,
+        radius: PI * 0.5,
+        ..default()
+    };
+
+    cmds.spawn((
+        light,
+        Transform::from_xyz(1.0, 1.0, 8.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
     ));
 }
 

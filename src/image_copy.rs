@@ -1,3 +1,4 @@
+use crate::fb::FB;
 use bevy::{
     prelude::*,
     render::{
@@ -11,16 +12,11 @@ use bevy::{
         Extract, Render, RenderApp, RenderSystems,
     },
 };
-use crossbeam::channel::Sender;
 use image::{ImageBuffer, Rgba};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-
-/// This will send asynchronously any data to the main world
-#[derive(Resource, Deref)]
-struct RenderWorldSender(Sender<Vec<u8>>);
 
 /// Capture image settings and state
 #[derive(Debug, Default, Resource)]
@@ -55,9 +51,10 @@ pub enum SceneState {
 }
 
 /// Plugin for Render world part of work
-pub struct ImageCopyPlugin {
-    pub sender: Sender<Vec<u8>>,
-}
+pub struct ImageCopyPlugin;
+// {
+//     // pub sender: Sender<Vec<u8>>,
+// }
 
 impl Plugin for ImageCopyPlugin {
     fn build(&self, app: &mut App) {
@@ -72,7 +69,7 @@ impl Plugin for ImageCopyPlugin {
         graph.add_node_edge(bevy::render::graph::CameraDriverLabel, ImageCopy);
 
         render_app
-            .insert_resource(RenderWorldSender(self.sender.clone()))
+            // .insert_resource(RenderWorldSender(self.sender.clone()))
             // Make ImageCopiers accessible in RenderWorld system and plugin
             .add_systems(ExtractSchedule, image_copy_extract)
             // Receives image data from buffer to channel
@@ -80,8 +77,13 @@ impl Plugin for ImageCopyPlugin {
             .add_systems(
                 Render,
                 receive_image_from_buffer.after(RenderSystems::Render),
-            );
+            )
+            .add_systems(Render, render_start.before(RenderSystems::Render));
     }
+}
+
+fn render_start() {
+    info!("before redner");
 }
 
 // /// Setups image saver
@@ -100,9 +102,9 @@ pub struct ImageCopiers(pub Vec<ImageCopier>);
 /// Used by `ImageCopyDriver` for copying from render target to buffer
 #[derive(Clone, Component)]
 pub struct ImageCopier {
-    buffer: Buffer,
-    enabled: Arc<AtomicBool>,
-    src_image: Handle<Image>,
+    pub buffer: Buffer,
+    pub enabled: Arc<AtomicBool>,
+    pub src_image: Handle<Image>,
 }
 
 impl ImageCopier {
@@ -135,9 +137,11 @@ impl ImageCopier {
 
 /// Extracting `ImageCopier`s into render world, because `ImageCopyDriver` accesses them
 fn image_copy_extract(mut commands: Commands, image_copiers: Extract<Query<&ImageCopier>>) {
+    info!("image_copy_extract start");
     commands.insert_resource(ImageCopiers(
         image_copiers.iter().cloned().collect::<Vec<ImageCopier>>(),
     ));
+    info!("image_copy_extract done");
 }
 
 /// `RenderGraph` label for `ImageCopyDriver`
@@ -156,6 +160,7 @@ impl render_graph::Node for ImageCopyDriver {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
+        info!("ImageCopyDriver start");
         let image_copiers = world.get_resource::<ImageCopiers>().unwrap();
         let gpu_images = world
             .get_resource::<RenderAssets<bevy::render::texture::GpuImage>>()
@@ -204,6 +209,8 @@ impl render_graph::Node for ImageCopyDriver {
             render_queue.submit(std::iter::once(encoder.finish()));
         }
 
+        info!("ImageCopyDriver done");
+
         Ok(())
     }
 }
@@ -212,8 +219,10 @@ impl render_graph::Node for ImageCopyDriver {
 fn receive_image_from_buffer(
     image_copiers: Res<ImageCopiers>,
     render_device: Res<RenderDevice>,
-    sender: Res<RenderWorldSender>,
+    // sender: Res<RenderWorldSender>,
+    fb: Res<FB>,
 ) {
+    info!("receive_image_from_buffer start");
     for image_copier in image_copiers.0.iter() {
         if !image_copier.enabled() {
             continue;
@@ -275,13 +284,25 @@ fn receive_image_from_buffer(
 
         // This could fail on app exit, if Main world clears resources (including receiver) while Render world still renders
         // let _ = sender.send(buffer_slice.get_mapped_range().to_vec());
-        let _ = sender.send(encoded_image);
+        // let _ = sender.send(encoded_image);
+
+        println!("making data");
+        let mut data = fb.0.map().unwrap();
+        println!("making data");
+
+        println!("copying data to framebuffer");
+        (0..data.len()).for_each(|i| {
+            data[i] = encoded_image[i];
+        });
+        println!("done copying to framebuffer");
 
         // We need to make sure all `BufferView`'s are dropped before we do what we're about
         // to do.
         // Unmap so that we can copy to the staging buffer in the next iteration.
         image_copier.buffer.unmap();
     }
+
+    info!("receive_image_from_buffer end");
 }
 
 /// CPU-side image for saving

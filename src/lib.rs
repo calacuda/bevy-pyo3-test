@@ -1,6 +1,12 @@
-use crate::image_copy::{ImageCopier, ImageCopyPlugin, ImageToSave, SceneController, SceneState};
+use crate::{
+    fb::FB,
+    image_copy::{ImageCopier, ImageCopyPlugin, ImageToSave, SceneController, SceneState},
+};
+use anyhow::{bail, Result};
 use bevy::{
+    a11y::AccessibilityPlugin,
     asset::RenderAssetUsages,
+    audio::AudioPlugin,
     camera::{ImageRenderTarget, RenderTarget},
     core_pipeline::tonemapping::Tonemapping,
     math::FloatOrd,
@@ -12,12 +18,14 @@ use bevy::{
         renderer::RenderDevice,
     },
 };
-use crossbeam::channel::{unbounded, Receiver, Sender};
+// use crossbeam::channel::{unbounded, Receiver, Sender};
+use linuxfb::Framebuffer;
 use std::{
     f32::consts::PI,
     thread::{spawn, JoinHandle},
 };
 
+pub mod fb;
 pub mod image_copy;
 pub mod sphere;
 
@@ -114,8 +122,8 @@ fn setup(
 // #[pyclass]
 pub struct IPC {
     pub _thread_jh: JoinHandle<()>,
-    send: Sender<()>,
-    recv: Receiver<Vec<u8>>,
+    // send: Sender<()>,
+    // recv: Receiver<Vec<u8>>,
 }
 
 // #[pymethods]
@@ -134,10 +142,79 @@ pub struct IPC {
 //     }
 // }
 
+pub fn do_run() -> Result<()> {
+    let runner = move |mut app: App| {
+        app.finish();
+
+        loop {
+            app.update();
+
+            if let Some(exit) = app.should_exit() {
+                return exit;
+            }
+            // if to_bevy.1.try_recv().is_ok() {
+            //     return AppExit::Success;
+            // }
+        }
+    };
+
+    let Ok(frame_buff) = Framebuffer::new("/dev/fb0") else {
+        bail!("failed to grab framebuffer");
+    };
+
+    // let mut app = App::new();
+    let mut app = App::new();
+
+    app.insert_resource(SceneController::new(1280, 720, false))
+        .add_plugins((
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                // .disable::<WinitPlugin>()
+                .disable::<AudioPlugin>()
+                .disable::<PipelinedRenderingPlugin>(), // .disable::<WebAssetPlugin>()
+            // .disable::<AccessibilityPlugin>()
+            WireframePlugin::default(),
+            sphere::SphereMode,
+            ImageCopyPlugin,
+        ))
+        .insert_resource(WireframeConfig {
+            // The global wireframe config enables drawing of wireframes on every mesh,
+            // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
+            // regardless of the global configuration.
+            global: true,
+            // Controls the default color of all wireframes. Used as the default color for global wireframes.
+            // Can be changed per mesh using the `WireframeColor` component.
+            default_color: Srgba {
+                red: (166. / 255.),
+                green: (227. / 255.),
+                blue: (161. / 255.),
+                alpha: 1.0,
+            }
+            .into(),
+        })
+        .insert_resource(ClearColor(
+            Srgba {
+                red: (30. / 255.),
+                green: (30. / 255.),
+                blue: (46. / 255.),
+                alpha: 0.25,
+            }
+            .into(),
+        ))
+        .init_resource::<SceneController>()
+        .insert_resource(FB(frame_buff))
+        .add_systems(Startup, setup)
+        .set_runner(runner);
+
+    app.run();
+
+    Ok(())
+}
+
 // #[pyfunction]
-pub fn run() -> IPC {
-    let to_bevy = unbounded();
-    let from_bevy = unbounded();
+pub fn run() -> Result<IPC> {
+    // let to_bevy = unbounded();
+    // let from_bevy = unbounded();
 
     let runner = move |mut app: App| {
         app.finish();
@@ -148,16 +225,21 @@ pub fn run() -> IPC {
             if let Some(exit) = app.should_exit() {
                 return exit;
             }
-
-            if to_bevy.1.try_recv().is_ok() {
-                return AppExit::Success;
-            }
+            // if to_bevy.1.try_recv().is_ok() {
+            //     return AppExit::Success;
+            // }
         }
     };
 
-    IPC {
-        send: to_bevy.0,
-        recv: from_bevy.1,
+    eprintln!("about to make framebuffer");
+    let Ok(frame_buff) = Framebuffer::new("/dev/fb0") else {
+        bail!("failed to grab framebuffer");
+    };
+    eprintln!("made framebuffer");
+
+    Ok(IPC {
+        // send: to_bevy.0,
+        // recv: from_bevy.1,
         _thread_jh: spawn(move || {
             App::new()
                 .insert_resource(SceneController::new(1280, 720, false))
@@ -165,13 +247,17 @@ pub fn run() -> IPC {
                     DefaultPlugins
                         .set(ImagePlugin::default_nearest())
                         // .disable::<WinitPlugin>()
-                        .disable::<PipelinedRenderingPlugin>(), // .disable::<AccessibilityPlugin>(),
+                        .disable::<AudioPlugin>()
+                        .disable::<PipelinedRenderingPlugin>()
+                        // .disable::<WebAssetPlugin>()
+                        .disable::<AccessibilityPlugin>(),
                     WireframePlugin::default(),
                     sphere::SphereMode,
+                    // ImageCopyPlugin,
                 ))
-                .add_plugins(ImageCopyPlugin {
-                    sender: from_bevy.0,
-                })
+                // .add_plugins(ImageCopyPlugin {
+                // sender: from_bevy.0,
+                // })
                 .insert_resource(WireframeConfig {
                     // The global wireframe config enables drawing of wireframes on every mesh,
                     // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
@@ -197,11 +283,12 @@ pub fn run() -> IPC {
                     .into(),
                 ))
                 .init_resource::<SceneController>()
+                .insert_resource(FB(frame_buff))
                 .add_systems(Startup, setup)
                 .set_runner(runner)
                 .run();
         }),
-    }
+    })
 }
 
 // /// A Python module implemented in Rust.

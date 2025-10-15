@@ -36,20 +36,32 @@ pub struct SphereMode;
 impl Plugin for SphereMode {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (gen_perlin, add_sphere, timer_setup))
-            .add_systems(Update, (undulate_sphere, rotate_sphere));
+            .add_systems(Update, (undulate_sphere, rotate_sphere))
+            .add_systems(PostUpdate, || {
+                info!("update schedule complete");
+            })
+            .add_systems(PreUpdate, || {
+                info!("starting update schdeule");
+            });
     }
 }
 
 fn timer_setup(mut commands: Commands) {
+    info!("setting up timer");
     // Add an entity to the world with a timer
     commands.spawn(UndulateTimer(Timer::from_seconds(
         1.0 / 2.0,
         TimerMode::Repeating,
     )));
+    info!("set up timer");
 }
 
 fn gen_perlin(mut cmd: Commands) {
+    info!("making perlin");
+    // eprintln!("making perlin");
     cmd.insert_resource(PerlinWrapper(Perlin::new(rand::rng().random())));
+    info!("made perlin");
+    // eprintln!("made perlin");
 }
 
 fn add_sphere(
@@ -57,6 +69,7 @@ fn add_sphere(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    info!("about to add sphere");
     let mut sphere = |mul| {
         meshes.add({
             let mut sphere = Sphere::default();
@@ -115,6 +128,7 @@ fn add_sphere(
         Rotatable { speed: 0.03125 },
         UndulateSphere,
     ));
+    info!("added sphere");
 }
 
 fn undulate_sphere(
@@ -125,6 +139,8 @@ fn undulate_sphere(
     time: Res<Time>,
     mut zoom: ResMut<Zoom>,
 ) {
+    info!("undulating sphere");
+
     let Some(base_positions) = meshes.get(base_sphere.0.id()).map(|mesh| {
         mesh.attribute(Mesh::ATTRIBUTE_POSITION)
             .unwrap()
@@ -183,6 +199,7 @@ fn undulate_sphere(
 
 // This system will rotate any entity in the scene with a Rotatable component around its y-axis.
 fn rotate_sphere(mut spheres: Query<(&mut Transform, &Rotatable)>, timer: Res<Time>) {
+    info!("rotating");
     for (mut transform, sphere) in &mut spheres {
         // The speed is first multiplied by TAU which is a full rotation (360deg) in radians,
         // and then multiplied by delta_secs which is the time that passed last frame.

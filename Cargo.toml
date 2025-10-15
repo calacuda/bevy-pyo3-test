@@ -9,12 +9,10 @@ name = "bevy_pyo3_test"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+anyhow = "1.0.100"
 bevy = { version = "0.17", default-features = false, features = [
-  "std",
-  "async_executor",
-  # "android-game-activity",
-  # "android_shared_stdcxx",
-  "animation",
+  # "std",
+  # "animation",
   "bevy_asset",
   "bevy_audio",
   "bevy_color",
@@ -22,7 +20,7 @@ bevy = { version = "0.17", default-features = false, features = [
   "bevy_gilrs",
   "bevy_gizmos",
   "bevy_gltf",
-  "bevy_input_focus",
+  # "bevy_input_focus",
   "bevy_log",
   "bevy_mesh_picking_backend",
   "bevy_pbr",
@@ -36,9 +34,6 @@ bevy = { version = "0.17", default-features = false, features = [
   "bevy_ui",
   "bevy_ui_picking_backend",
   "bevy_post_process",
-  # "bevy_window",
-  # "bevy_winit",
-  # "custom_cursor",
   "default_font",
   "hdr",
   "multi_threaded",
@@ -47,15 +42,15 @@ bevy = { version = "0.17", default-features = false, features = [
   "sysinfo_plugin",
   "tonemapping_luts",
   "vorbis",
-  # "webgl2",
-  # "x11",
-  "zstd_c",
-  # "wayland",
+  "zstd_rust",
 ] }
+# bevy_platform_support = { version = "0.17",  default-features = false }
 # bevy_internal = { version = "0.17.2", default-features = false }
 bincode = { version = "2.0.1", features = ["serde"] }
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel", "nightly"] }
 image = { version = "0.25.8", features = ["serde"] }
+linuxfb = "0.3.1"
 noise = { version = "0.9.0", features = ["std"] }
 # pyo3 = "0.26"
 rand = { version = "0.9.2", features = ["nightly"] }
+# vulkan-bevy-renderer = { git = "https://github.com/calacuda/flo", version = "0.1.0" }
